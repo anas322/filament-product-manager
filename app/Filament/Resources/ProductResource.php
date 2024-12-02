@@ -29,6 +29,7 @@ use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Textarea;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
+use Illuminate\Database\Eloquent\Model;
 use Filament\Forms\Components\TagsInput;
 use Filament\Forms\Components\TextInput;
 use Filament\Tables\Actions\ActionGroup;
@@ -43,6 +44,7 @@ use Filament\Tables\Filters\TernaryFilter;
 use Illuminate\Contracts\Support\Htmlable;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\Builder\Block;
+use Filament\Forms\Components\Actions\Action;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\MarkdownEditor;
 use Filament\Tables\Actions\Contracts\HasTable;
@@ -50,7 +52,7 @@ use App\Filament\Resources\ProductResource\Pages;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use App\Filament\Resources\ProductResource\RelationManagers;
 use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
-use Illuminate\Database\Eloquent\Model;
+use App\Filament\Resources\BrandResource\RelationManagers\BrandRelationManager;
 
 class ProductResource extends Resource
 {
@@ -97,7 +99,7 @@ class ProductResource extends Resource
                         TextInput::make('name')->label('Product Name')
                             ->required()
                             ->live(onBlur: true)
-                            ->unique()
+                            ->unique(ignoreRecord: true)
                             ->afterStateUpdated(function (string $operation, $state, Set $set) {
                                 if ($operation !== 'create') return;
 
@@ -115,7 +117,7 @@ class ProductResource extends Resource
 
                     Section::make('Pricing & Inventory')->schema([
                         TextInput::make('sku')->label('SKU (Stock Keeping Unit)')
-                            ->unique()
+                            ->unique(ignoreRecord: true)
                             ->required(),
                         TextInput::make('price')->label('Price')
                             ->numeric()
@@ -151,8 +153,17 @@ class ProductResource extends Resource
                             ->imageEditor(),
                     ])->collapsible(),
 
-                    Section::make('Brand')->schema([
-                        Select::make('brand_id')->label('Brand')->relationship('brand', 'name'),
+                    Section::make('Brand & Category')->schema([
+                        Select::make('brand_id')
+                            ->label('Brand')
+                            ->relationship('brand', 'name')
+                            ->required(),
+                        Select::make('categories')
+                            ->label('Categories')
+                            ->relationship('categories', 'name')
+                            ->multiple()
+                            ->preload()
+                            ->required(),
                     ])
                 ])->columns(2),
 
@@ -223,7 +234,7 @@ class ProductResource extends Resource
     public static function getRelations(): array
     {
         return [
-            'brand' => \App\Filament\Resources\BrandResource\RelationManagers\BrandRelationManager::class,
+            //
         ];
     }
 

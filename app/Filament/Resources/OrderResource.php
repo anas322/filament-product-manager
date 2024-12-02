@@ -6,12 +6,15 @@ use Filament\Forms;
 use Filament\Tables;
 use App\Models\Order;
 use App\Models\Product;
+use Filament\Forms\Get;
+use Filament\Forms\Set;
 use Filament\Forms\Form;
 use Filament\Tables\Table;
 use App\Enums\OrderStatusEnum;
 use Filament\Resources\Resource;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Wizard;
+use Filament\Forms\Components\Repeater;
 use Filament\Tables\Actions\EditAction;
 use Filament\Tables\Actions\ViewAction;
 use Filament\Tables\Columns\TextColumn;
@@ -25,7 +28,8 @@ use Filament\Forms\Components\MarkdownEditor;
 use App\Filament\Resources\OrderResource\Pages;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use App\Filament\Resources\OrderResource\RelationManagers;
-use Filament\Forms\Components\Repeater;
+use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Section;
 
 class OrderResource extends Resource
 {
@@ -46,37 +50,98 @@ class OrderResource extends Resource
     {
         return $form
             ->schema([
+
                 Wizard::make([
+
                     Step::make('Order Information')->schema([
-                        TextInput::make('number')->disabled()->dehydrated()->default('OR-' . date('Ymd') . '-' . rand(1000, 9999)),
+
+                        TextInput::make('number')
+                            ->disabled()
+                            ->dehydrated()
+                            ->default('OR-' . date('Ymd') . '-' . rand(1000, 9999)),
+
                         Select::make('customer_id')
                             ->relationship('customer', 'name')
                             ->required(),
+
                         Select::make('status')->options([
+
                             'pending' => OrderStatusEnum::PENDING->value,
                             'processing' => OrderStatusEnum::PROCESSING->value,
                             'completed' => OrderStatusEnum::COMPLETED->value,
                             'declined' => OrderStatusEnum::DECLINED->value,
+
                         ])->required(),
 
+                        TextInput::make('shipping_price')
+                            ->numeric()
+                            ->live()
+                            ->dehydrated()
+                            ->required(),
+
+
+
                         MarkdownEditor::make('notes')->columnSpanFull(),
+
                     ])->columns(2),
 
 
                     Step::make('Order Items')->schema([
 
-                        Repeater::make('items')->relationship()->schema([
-                            Select::make('product_id')->options(Product::query()->pluck('name', 'id'))->required(),
+                        Repeater::make('items')
+                            ->relationship()
+                            ->schema([
 
-                            TextInput::make('quantity')->numeric()->required()
-                                ->maxValue(100)
-                                ->minValue(1)
-                                ->default(1),
+                                Select::make('product_id')
+                                    ->required()
+                                    ->options(
+                                        Product::query()->pluck('name', 'id')
+                                    )
+                                    ->live()
+                                    ->afterStateUpdated(function ($state, Get $get, Set $set) {
+                                        $price = Product::find($state)?->price ?? 0;
 
-                            TextInput::make('unit_price')->numeric()->required()->label('Unit Price')->disabled()->dehydrated()
-                                ->maxValue(1000000)
-                                ->minValue(1),
-                        ])->columns(3)
+                                        $set('unit_price',  $price);
+                                    }),
+
+
+
+                                TextInput::make('quantity')
+                                    ->numeric()
+                                    ->required()
+                                    ->live()
+                                    ->dehydrated()
+                                    ->minValue(1)
+                                    ->maxValue(100)
+                                    ->default(1),
+
+
+                                TextInput::make('unit_price')
+                                    ->label('Unit Price')
+                                    ->numeric()
+                                    ->required()
+                                    ->disabled()
+                                    ->dehydrated()
+                                    ->maxValue(1000000)
+                                    ->minValue(1),
+
+                                Section::make('Price Calculation')
+                                    ->schema([
+
+                                        Placeholder::make('sub_total')
+                                            ->label('Sub Total')
+                                            ->content(function ($get) {
+                                                return (int)$get('quantity') * (int)$get('unit_price');
+                                            }),
+
+                                        Placeholder::make('total_price')
+                                            ->label('Total Price')
+                                            ->content(function (Get $get) {
+                                                return (int)$get('unit_price') * (int)$get('quantity') + (int) $get('../../shipping_price');
+                                            }),
+
+                                    ])->inlineLabel()
+                            ])->columns(2)
                     ])
                 ])->columnSpanFull(),
             ]);
@@ -86,7 +151,7 @@ class OrderResource extends Resource
     {
         return $table
             ->columns([
-                TextColumn::make('name')
+                TextColumn::make('number')
                     ->searchable()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('customer.name')
@@ -97,15 +162,6 @@ class OrderResource extends Resource
                 Tables\Columns\TextColumn::make('status')
                     ->searchable()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('total_price')
-                    ->searchable()
-                    ->sortable()
-                    ->summarize(
-                        [
-                            Sum::make()
-                                ->money()
-                        ]
-                    ),
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('Created')
                     ->date(),

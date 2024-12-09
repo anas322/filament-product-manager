@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources;
 
+use Filament\Tables\Columns\Summarizers\Count;
 use stdClass;
 use Filament\Forms;
 use App\Models\User;
@@ -15,6 +16,7 @@ use Filament\Tables\Table;
 use Illuminate\Support\Str;
 use App\Enums\ProductTypeEnum;
 use Filament\Resources\Resource;
+use Filament\Tables\Actions\Action;
 use Filament\Forms\Components\Group;
 use Filament\Forms\Components\Radio;
 use Filament\Forms\Components\Split;
@@ -27,6 +29,7 @@ use Filament\Forms\Components\Checkbox;
 use Filament\Forms\Components\KeyValue;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Textarea;
+use Filament\Tables\Actions\EditAction;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Illuminate\Database\Eloquent\Model;
@@ -39,20 +42,24 @@ use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\RichEditor;
 use Filament\Tables\Columns\SelectColumn;
+use Filament\Tables\Filters\QueryBuilder;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TernaryFilter;
 use Illuminate\Contracts\Support\Htmlable;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\Builder\Block;
-use Filament\Forms\Components\Actions\Action;
+use Illuminate\Database\Eloquent\Collection;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\MarkdownEditor;
+use Filament\Tables\Columns\Summarizers\Range;
 use Filament\Tables\Actions\Contracts\HasTable;
+use Filament\Tables\Columns\Summarizers\Average;
 use App\Filament\Resources\ProductResource\Pages;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use App\Filament\Resources\ProductResource\RelationManagers;
 use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
-use App\Filament\Resources\BrandResource\RelationManagers\BrandRelationManager;
+use Filament\Tables\Columns\Summarizers\Sum;
+use Filament\Tables\Filters\QueryBuilder\Constraints\RelationshipConstraint\Operators\IsRelatedToOperator;
 
 class ProductResource extends Resource
 {
@@ -172,7 +179,7 @@ class ProductResource extends Resource
 
     public static function table(Table $table): Table
     {
-        return $table
+        return $table->groups(['type', 'brand.name'])
             ->columns([
 
                 ImageColumn::make('image')->label('Product Image')
@@ -195,7 +202,10 @@ class ProductResource extends Resource
                     ->searchable()
                     ->sortable()
                     ->toggleable(),
-
+                TextColumn::make('price')->summarize([Average::make(), Range::make()]),
+                TextColumn::make('created_at')
+                    ->dateTime()
+                    ->summarize(Range::make()->minimalDateTimeDifference()),
                 TextColumn::make('quantity')
                     ->searchable()
                     ->sortable()
